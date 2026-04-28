@@ -233,16 +233,14 @@ class GardenIrrigationCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             level = self.data.get("advice", {}).get(zone_id, {}).get("level")
             morning_state = self._zone_morning_state.get(zone_id, MORNING_STATE_PENDING)
 
-            # Skip if user explicitly opted out
-            if morning_state == MORNING_STATE_SKIP:
-                _LOGGER.debug("Zone %s skipped by user response", zone_id)
-                continue
-
-            # Water if user confirmed, or if no response but advice is strong enough
+            # Only water if the user explicitly confirmed — no fallback on advice alone
             if morning_state == MORNING_STATE_CONFIRMED:
                 await self.async_start_zone(zone_id)
-            elif morning_state == MORNING_STATE_PENDING and level in (ADVICE_RECOMMENDED, ADVICE_URGENT):
-                await self.async_start_zone(zone_id)
+            else:
+                _LOGGER.debug(
+                    "Zone %s not watered: state=%s (confirmation required)",
+                    zone_id, morning_state,
+                )
 
         # Reset states for next cycle
         for zone_id in self._zone_morning_state:

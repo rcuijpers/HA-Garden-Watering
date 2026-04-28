@@ -1,5 +1,9 @@
 # Garden Irrigation for Home Assistant
 
+[![hacs_badge](https://img.shields.io/badge/HACS-Custom-orange.svg)](https://github.com/hacs/integration)
+
+[![Open your Home Assistant instance and add a custom repository.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=rcuijpers&repository=HA-Garden-Watering&category=integration)
+
 A fully UI-configurable Home Assistant custom integration for smart garden watering. No YAML required — configure everything through the HA interface.
 
 ## Features

@@ -1,24 +1,18 @@
-"""Switch, Button and Number platforms for Garden Irrigation."""
+"""Switch platform for Garden Irrigation."""
 from __future__ import annotations
 
-from homeassistant.components.button import ButtonEntity
-from homeassistant.components.number import NumberEntity, NumberMode
 from homeassistant.components.switch import SwitchEntity
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import UnitOfTime
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .const import (
     DOMAIN,
-    DEFAULT_ZONE_DURATION,
-    DEFAULT_RAIN_THRESHOLD,
     CONF_ZONES,
     CONF_ZONE_ID,
     CONF_ZONE_NAME,
     CONF_ZONE_ENABLED,
-    CONF_RAIN_THRESHOLD,
     STATUS_RUNNING,
 )
 from .coordinator import GardenIrrigationCoordinator
@@ -33,10 +27,6 @@ def _device_info(entry: ConfigEntry) -> dict:
     }
 
 
-# ---------------------------------------------------------------------------
-# Switch platform
-# ---------------------------------------------------------------------------
-
 async def async_setup_entry(
     hass: HomeAssistant,
     entry: ConfigEntry,
@@ -45,7 +35,7 @@ async def async_setup_entry(
     coordinator: GardenIrrigationCoordinator = hass.data[DOMAIN][entry.entry_id]
     zones = [z for z in entry.data.get(CONF_ZONES, []) if z.get(CONF_ZONE_ENABLED, True)]
 
-    entities: list = [
+    entities: list[SwitchEntity] = [
         AutoModeSwitch(coordinator, entry),
         LeakDetectionSwitch(coordinator, entry),
     ]
@@ -70,7 +60,6 @@ class ZoneStartSwitch(_GardenSwitchBase):
 
     def __init__(self, coordinator, entry, zone: dict) -> None:
         super().__init__(coordinator, entry)
-        self._zone = zone
         self._zone_id = zone[CONF_ZONE_ID]
         self._attr_unique_id = f"{entry.entry_id}_start_{self._zone_id}"
         self._attr_translation_placeholders = {"zone_name": zone[CONF_ZONE_NAME]}
@@ -124,83 +113,3 @@ class LeakDetectionSwitch(_GardenSwitchBase):
 
     async def async_turn_off(self, **kwargs) -> None:
         await self.coordinator.async_set_leak_detection(False)
-
-
-# ---------------------------------------------------------------------------
-# Button platform — loaded via __init__ registering the platform separately
-# ---------------------------------------------------------------------------
-
-class StopAllButton(CoordinatorEntity[GardenIrrigationCoordinator], ButtonEntity):
-    _attr_has_entity_name = True
-    _attr_translation_key = "stop_all"
-    _attr_icon = "mdi:stop-circle-outline"
-
-    def __init__(self, coordinator: GardenIrrigationCoordinator, entry: ConfigEntry) -> None:
-        super().__init__(coordinator)
-        self._entry = entry
-        self._attr_unique_id = f"{entry.entry_id}_stop_all"
-        self._attr_device_info = _device_info(entry)
-
-    async def async_press(self) -> None:
-        await self.coordinator.async_stop_all()
-
-
-# ---------------------------------------------------------------------------
-# Number platform
-# ---------------------------------------------------------------------------
-
-class ZoneDurationNumber(CoordinatorEntity[GardenIrrigationCoordinator], NumberEntity):
-    _attr_has_entity_name = True
-    _attr_translation_key = "duration"
-    _attr_native_unit_of_measurement = UnitOfTime.MINUTES
-    _attr_native_min_value = 1
-    _attr_native_max_value = 240
-    _attr_native_step = 1
-    _attr_mode = NumberMode.BOX
-    _attr_icon = "mdi:timer"
-
-    def __init__(self, coordinator: GardenIrrigationCoordinator, entry: ConfigEntry, zone: dict) -> None:
-        super().__init__(coordinator)
-        self._entry = entry
-        self._zone = zone
-        self._zone_id = zone[CONF_ZONE_ID]
-        self._attr_unique_id = f"{entry.entry_id}_duration_{self._zone_id}"
-        self._attr_translation_placeholders = {"zone_name": zone[CONF_ZONE_NAME]}
-        self._attr_device_info = _device_info(entry)
-
-    @property
-    def native_value(self) -> float:
-        return float(self.coordinator.get_zone_duration(self._zone_id))
-
-    async def async_set_native_value(self, value: float) -> None:
-        await self.coordinator.async_update_zone_duration(self._zone_id, int(value))
-        self.async_write_ha_state()
-
-
-class RainThresholdNumber(CoordinatorEntity[GardenIrrigationCoordinator], NumberEntity):
-    _attr_has_entity_name = True
-    _attr_translation_key = "rain_threshold"
-    _attr_native_unit_of_measurement = "mm"
-    _attr_native_min_value = 0
-    _attr_native_max_value = 100
-    _attr_native_step = 0.5
-    _attr_mode = NumberMode.BOX
-    _attr_icon = "mdi:weather-rainy"
-
-    def __init__(self, coordinator: GardenIrrigationCoordinator, entry: ConfigEntry) -> None:
-        super().__init__(coordinator)
-        self._entry = entry
-        self._attr_unique_id = f"{entry.entry_id}_rain_threshold"
-        self._attr_device_info = _device_info(entry)
-
-    @property
-    def native_value(self) -> float:
-        return float(
-            self._entry.options.get(CONF_RAIN_THRESHOLD)
-            or self._entry.data.get(CONF_RAIN_THRESHOLD, DEFAULT_RAIN_THRESHOLD)
-        )
-
-    async def async_set_native_value(self, value: float) -> None:
-        options = {**self._entry.options, CONF_RAIN_THRESHOLD: value}
-        self.hass.config_entries.async_update_entry(self._entry, options=options)
-        await self.coordinator.async_request_refresh()

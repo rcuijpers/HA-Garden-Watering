@@ -8,11 +8,10 @@ from homeassistant.core import HomeAssistant
 
 from .const import DOMAIN, CONF_ZONES, CONF_ZONE_ID, CONF_ZONE_NAME, CONF_ZONE_ENABLED
 from .coordinator import GardenIrrigationCoordinator
-from .switch import StopAllButton, ZoneDurationNumber, RainThresholdNumber
 
 _LOGGER = logging.getLogger(__name__)
 
-_PLATFORMS = ["sensor", "switch"]
+_PLATFORMS = ["sensor", "switch", "button", "number"]
 
 _LOVELACE_URL_PATH = "garden-irrigation"
 
@@ -28,33 +27,10 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     await hass.config_entries.async_forward_entry_setups(entry, _PLATFORMS)
 
     zones = [z for z in entry.data.get(CONF_ZONES, []) if z.get(CONF_ZONE_ENABLED, True)]
-
-    button_entities = [StopAllButton(coordinator, entry)]
-    number_entities: list = [RainThresholdNumber(coordinator, entry)]
-    for zone in zones:
-        number_entities.append(ZoneDurationNumber(coordinator, entry, zone))
-
-    from homeassistant.components.button import DOMAIN as BUTTON_DOMAIN
-    from homeassistant.components.number import DOMAIN as NUMBER_DOMAIN
-
-    hass.async_create_task(
-        _async_add_platform_entities(hass, entry, BUTTON_DOMAIN, button_entities)
-    )
-    hass.async_create_task(
-        _async_add_platform_entities(hass, entry, NUMBER_DOMAIN, number_entities)
-    )
-
     hass.async_create_task(_async_setup_dashboard(hass, entry, zones))
 
     entry.async_on_unload(entry.add_update_listener(_async_update_listener))
     return True
-
-
-async def _async_add_platform_entities(hass, entry, platform_domain, entities):
-    component = hass.data.get(platform_domain)
-    if component is None:
-        return
-    await component.async_add_entities(entities)
 
 
 async def _async_setup_dashboard(
@@ -66,22 +42,19 @@ async def _async_setup_dashboard(
         from homeassistant.components.lovelace import dashboard as lovelace_dashboard
         from homeassistant.helpers.storage import Store
 
-        # Only create once — check if already registered
         lovelace_data = hass.data.get(lovelace_component.DOMAIN)
         if lovelace_data is None:
             _LOGGER.debug("Lovelace not available yet, skipping dashboard creation")
             return
 
         if _LOVELACE_URL_PATH in lovelace_data.get("dashboards", {}):
-            return  # already exists
+            return
 
         dashboard_config = _build_dashboard_config(entry, zones)
 
-        # Store the dashboard content
         store = Store(hass, 1, f"lovelace.{_LOVELACE_URL_PATH}")
         await store.async_save({"config": dashboard_config})
 
-        # Register with lovelace
         ll_config = {
             "mode": "storage",
             "url_path": _LOVELACE_URL_PATH,
@@ -96,7 +69,6 @@ async def _async_setup_dashboard(
         _LOGGER.info("Garden Irrigation dashboard created at /%s", _LOVELACE_URL_PATH)
 
     except Exception as exc:
-        # Non-fatal: dashboard creation is best-effort
         _LOGGER.warning(
             "Could not auto-create dashboard (not critical): %s. "
             "Import dashboard/lovelace_dashboard.yaml manually.",
@@ -105,7 +77,6 @@ async def _async_setup_dashboard(
 
 
 def _build_dashboard_config(entry: ConfigEntry, zones: list[dict]) -> dict:
-    """Build a Lovelace dashboard config dict for the given zones."""
     zone_cards = []
     for zone in zones:
         zid = zone[CONF_ZONE_ID]
@@ -195,6 +166,5 @@ async def _async_update_listener(hass: HomeAssistant, entry: ConfigEntry) -> Non
 
 
 async def async_migrate_entry(hass: HomeAssistant, config_entry: ConfigEntry) -> bool:
-    """Migrate old config entry to new version."""
     _LOGGER.debug("Migrating config entry from version %s", config_entry.version)
     return True

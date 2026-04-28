@@ -7,7 +7,8 @@ from datetime import datetime, timedelta, timezone
 from typing import Any
 
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.core import HomeAssistant
+from homeassistant.core import HomeAssistant, callback
+from homeassistant.helpers.event import async_track_time_change, async_track_state_change_event
 from homeassistant.helpers.storage import Store
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 from homeassistant.util import dt as dt_util
@@ -51,6 +52,9 @@ from .const import (
     CONF_LEAK_DETECTION,
     CONF_LEAK_CHECK_INTERVAL,
     CONF_NOTIFY_SERVICE,
+    CONF_EVENING_ADVICE_TIME,
+    CONF_MORNING_START_TIME,
+    CONF_AUTO_START,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -101,10 +105,103 @@ class GardenIrrigationCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         if self._leak_detection_enabled and self._config.get(CONF_FLOW_SENSOR):
             self._start_leak_detection_task()
 
+        self._setup_scheduled_tasks()
+
+    def _setup_scheduled_tasks(self) -> None:
+        """Register time-based and state-based listeners for automation logic."""
+        evening_time = self._config.get(CONF_EVENING_ADVICE_TIME, "20:00")
+        morning_time = self._config.get(CONF_MORNING_START_TIME, "06:00")
+
+        e_hour, e_min = (int(x) for x in evening_time.split(":"))
+        m_hour, m_min = (int(x) for x in morning_time.split(":"))
+
+        self._unsub_evening = async_track_time_change(
+            self.hass, self._async_send_evening_advice, hour=e_hour, minute=e_min, second=0
+        )
+        self._unsub_morning = async_track_time_change(
+            self.hass, self._async_morning_auto_start, hour=m_hour, minute=m_min, second=0
+        )
+
+        # Watch all advice sensors for rain-cancel
+        self._unsub_rain_cancel = async_track_state_change_event(
+            self.hass,
+            [f"sensor.{DOMAIN}_advice_{z[CONF_ZONE_ID]}"
+             for z in self._config.get(CONF_ZONES, [])],
+            self._async_rain_cancel_listener,
+        )
+
+    @callback
+    def _async_send_evening_advice(self, now) -> None:
+        self.hass.async_create_task(self._send_evening_advice())
+
+    async def _send_evening_advice(self) -> None:
+        """Send an evening notification with tomorrow's watering advice."""
+        if not self.data:
+            return
+        lines = []
+        icon_map = {ADVICE_SKIP: "🚫", ADVICE_OPTIONAL: "💧",
+                    ADVICE_RECOMMENDED: "💦", ADVICE_URGENT: "🚨"}
+        for zone in self._config.get(CONF_ZONES, []):
+            if not zone.get(CONF_ZONE_ENABLED, True):
+                continue
+            zone_id = zone[CONF_ZONE_ID]
+            advice = self.data.get("advice", {}).get(zone_id, {})
+            level = advice.get("level", ADVICE_OPTIONAL)
+            duration = advice.get("recommended_duration", zone.get(CONF_ZONE_DEFAULT_DURATION))
+            reason = advice.get("reason", "")
+            split = advice.get("split_session_suggested", False)
+            icon = icon_map.get(level, "💧")
+            line = f"{icon} {zone[CONF_ZONE_NAME]}: {level} ({duration} min)"
+            if reason:
+                line += f" — {reason}"
+            if split:
+                line += " ⚠️ gesplitste sessie aanbevolen"
+            lines.append(line)
+
+        message = (
+            f"Droge dagen: {self._dry_days}, Hete dagen: {self._hot_days}\n\n"
+            + "\n".join(lines)
+        )
+        await self._send_notification(message, title="🌱 Bewateringsadvies voor morgen")
+
+    @callback
+    def _async_morning_auto_start(self, now) -> None:
+        if self._config.get(CONF_AUTO_START) and self._auto_mode:
+            self.hass.async_create_task(self._morning_auto_start())
+
+    async def _morning_auto_start(self) -> None:
+        """Start all zones whose advice is recommended or urgent."""
+        if not self.data or self._status == STATUS_RUNNING:
+            return
+        for zone in self._config.get(CONF_ZONES, []):
+            if not zone.get(CONF_ZONE_ENABLED, True):
+                continue
+            zone_id = zone[CONF_ZONE_ID]
+            level = self.data.get("advice", {}).get(zone_id, {}).get("level")
+            if level in (ADVICE_RECOMMENDED, ADVICE_URGENT):
+                await self.async_start_zone(zone_id)
+
+    @callback
+    def _async_rain_cancel_listener(self, event) -> None:
+        new_state = event.data.get("new_state")
+        if new_state and new_state.state == ADVICE_SKIP and self._status == STATUS_RUNNING:
+            self.hass.async_create_task(self._rain_cancel())
+
+    async def _rain_cancel(self) -> None:
+        await self.async_stop_all()
+        await self._send_notification(
+            "De bewatering is gestopt wegens verwachte neerslag.",
+            title="🌧️ Bewatering geannuleerd",
+        )
+
     async def async_shutdown(self) -> None:
-        """Cancel background tasks on unload."""
+        """Cancel background tasks and listeners on unload."""
         if self._leak_task and not self._leak_task.done():
             self._leak_task.cancel()
+        for unsub in ("_unsub_evening", "_unsub_morning", "_unsub_rain_cancel"):
+            fn = getattr(self, unsub, None)
+            if fn:
+                fn()
 
     # ------------------------------------------------------------------
     # DataUpdateCoordinator interface
@@ -503,7 +600,7 @@ class GardenIrrigationCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             "hot_days": self._hot_days,
         })
 
-    async def _send_notification(self, message: str) -> None:
+    async def _send_notification(self, message: str, title: str = "Tuinbewatering") -> None:
         notify_service = self._config.get(CONF_NOTIFY_SERVICE)
         if not notify_service:
             return
@@ -513,7 +610,7 @@ class GardenIrrigationCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             await self.hass.services.async_call(
                 "notify",
                 service_name,
-                {"message": message, "title": "Tuinbewatering"},
+                {"message": message, "title": title},
                 blocking=False,
             )
         except Exception as exc:

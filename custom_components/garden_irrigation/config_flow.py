@@ -88,7 +88,7 @@ class GardenIrrigationConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             return await self.async_step_zones()
 
         return self.async_show_form(
-            step_id="main_valve",
+            step_id="user",
             data_schema=vol.Schema({
                 vol.Required(CONF_MAIN_VALVE): EntitySelector(
                     EntitySelectorConfig(domain=["switch", "valve"])

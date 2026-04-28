@@ -1,7 +1,7 @@
 {
   "config": {
     "step": {
-      "main_valve": {
+      "user": {
         "title": "Main Valve",
         "description": "Select the entity that controls the main water supply valve.",
         "data": {

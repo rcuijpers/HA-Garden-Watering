@@ -100,6 +100,15 @@ ENTITY_LEAK_DETECTION = "leak_detection_switch"
 ENTITY_DURATION_NUMBER = "duration"
 ENTITY_RAIN_THRESHOLD = "rain_threshold"
 
+# Actionable notification action prefixes
+ACTION_SKIP_PREFIX = "IRRIGATE_SKIP_"
+ACTION_CONFIRM_PREFIX = "IRRIGATE_CONFIRM_"
+
+# Zone morning states
+MORNING_STATE_PENDING = "pending"      # no user response yet
+MORNING_STATE_SKIP = "skip"            # user pressed Skip
+MORNING_STATE_CONFIRMED = "confirmed"  # user pressed Ready
+
 # Attributes
 ATTR_REASON = "reason"
 ATTR_RECOMMENDED_DURATION = "recommended_duration"

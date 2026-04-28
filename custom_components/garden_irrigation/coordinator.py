@@ -55,6 +55,11 @@ from .const import (
     CONF_EVENING_ADVICE_TIME,
     CONF_MORNING_START_TIME,
     CONF_AUTO_START,
+    ACTION_SKIP_PREFIX,
+    ACTION_CONFIRM_PREFIX,
+    MORNING_STATE_PENDING,
+    MORNING_STATE_SKIP,
+    MORNING_STATE_CONFIRMED,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -90,6 +95,12 @@ class GardenIrrigationCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         storage_key = STORAGE_KEY_DROUGHT.format(entry_id=entry.entry_id)
         self._store: Store = Store(hass, STORAGE_VERSION, storage_key)
         self._leak_task: asyncio.Task | None = None
+
+        # Per-zone morning state: pending / skip / confirmed
+        self._zone_morning_state: dict[str, str] = {
+            z[CONF_ZONE_ID]: MORNING_STATE_PENDING
+            for z in self._config.get(CONF_ZONES, [])
+        }
 
     async def async_setup(self) -> None:
         """Load persisted drought state and start background tasks."""
@@ -130,39 +141,81 @@ class GardenIrrigationCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             self._async_rain_cancel_listener,
         )
 
+        # Listen for actionable notification responses from the companion app
+        self._unsub_notification_action = self.hass.bus.async_listen(
+            "mobile_app_notification_action",
+            self._async_handle_notification_action,
+        )
+
     @callback
     def _async_send_evening_advice(self, now) -> None:
         self.hass.async_create_task(self._send_evening_advice())
 
     async def _send_evening_advice(self) -> None:
-        """Send an evening notification with tomorrow's watering advice."""
+        """Send per-zone actionable notifications for tomorrow's watering advice."""
         if not self.data:
             return
-        lines = []
+
+        # Reset morning states for a fresh round
+        for zone_id in self._zone_morning_state:
+            self._zone_morning_state[zone_id] = MORNING_STATE_PENDING
+
         icon_map = {ADVICE_SKIP: "🚫", ADVICE_OPTIONAL: "💧",
                     ADVICE_RECOMMENDED: "💦", ADVICE_URGENT: "🚨"}
+
         for zone in self._config.get(CONF_ZONES, []):
             if not zone.get(CONF_ZONE_ENABLED, True):
                 continue
             zone_id = zone[CONF_ZONE_ID]
             advice = self.data.get("advice", {}).get(zone_id, {})
             level = advice.get("level", ADVICE_OPTIONAL)
+
+            if level == ADVICE_SKIP:
+                # Zone will be skipped anyway — no action needed
+                self._zone_morning_state[zone_id] = MORNING_STATE_SKIP
+                continue
+
             duration = advice.get("recommended_duration", zone.get(CONF_ZONE_DEFAULT_DURATION))
             reason = advice.get("reason", "")
             split = advice.get("split_session_suggested", False)
             icon = icon_map.get(level, "💧")
-            line = f"{icon} {zone[CONF_ZONE_NAME]}: {level} ({duration} min)"
-            if reason:
-                line += f" — {reason}"
-            if split:
-                line += " ⚠️ gesplitste sessie aanbevolen"
-            lines.append(line)
 
-        message = (
-            f"Droge dagen: {self._dry_days}, Hete dagen: {self._hot_days}\n\n"
-            + "\n".join(lines)
-        )
-        await self._send_notification(message, title="🌱 Bewateringsadvies voor morgen")
+            message = f"{icon} {zone[CONF_ZONE_NAME]}: {duration} min gepland"
+            if reason:
+                message += f"\n{reason}"
+            if split:
+                message += "\n⚠️ Overweeg gesplitste sessie"
+
+            await self._send_notification(
+                message=message,
+                title="🌱 Bewatering morgen — maak klaar",
+                actions=[
+                    {
+                        "action": f"{ACTION_CONFIRM_PREFIX}{zone_id}",
+                        "title": "✓ In orde gemaakt",
+                    },
+                    {
+                        "action": f"{ACTION_SKIP_PREFIX}{zone_id}",
+                        "title": "Overslaan",
+                        "destructive": True,
+                    },
+                ],
+            )
+
+    @callback
+    def _async_handle_notification_action(self, event) -> None:
+        """Handle actionable notification responses from the companion app."""
+        action = event.data.get("action", "")
+        if action.startswith(ACTION_CONFIRM_PREFIX):
+            zone_id = action[len(ACTION_CONFIRM_PREFIX):]
+            if zone_id in self._zone_morning_state:
+                self._zone_morning_state[zone_id] = MORNING_STATE_CONFIRMED
+                _LOGGER.debug("Zone %s confirmed for morning watering", zone_id)
+        elif action.startswith(ACTION_SKIP_PREFIX):
+            zone_id = action[len(ACTION_SKIP_PREFIX):]
+            if zone_id in self._zone_morning_state:
+                self._zone_morning_state[zone_id] = MORNING_STATE_SKIP
+                _LOGGER.debug("Zone %s skipped for morning watering", zone_id)
 
     @callback
     def _async_morning_auto_start(self, now) -> None:
@@ -170,7 +223,7 @@ class GardenIrrigationCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             self.hass.async_create_task(self._morning_auto_start())
 
     async def _morning_auto_start(self) -> None:
-        """Start all zones whose advice is recommended or urgent."""
+        """Start zones based on evening confirmation state and advice level."""
         if not self.data or self._status == STATUS_RUNNING:
             return
         for zone in self._config.get(CONF_ZONES, []):
@@ -178,8 +231,22 @@ class GardenIrrigationCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 continue
             zone_id = zone[CONF_ZONE_ID]
             level = self.data.get("advice", {}).get(zone_id, {}).get("level")
-            if level in (ADVICE_RECOMMENDED, ADVICE_URGENT):
+            morning_state = self._zone_morning_state.get(zone_id, MORNING_STATE_PENDING)
+
+            # Skip if user explicitly opted out
+            if morning_state == MORNING_STATE_SKIP:
+                _LOGGER.debug("Zone %s skipped by user response", zone_id)
+                continue
+
+            # Water if user confirmed, or if no response but advice is strong enough
+            if morning_state == MORNING_STATE_CONFIRMED:
                 await self.async_start_zone(zone_id)
+            elif morning_state == MORNING_STATE_PENDING and level in (ADVICE_RECOMMENDED, ADVICE_URGENT):
+                await self.async_start_zone(zone_id)
+
+        # Reset states for next cycle
+        for zone_id in self._zone_morning_state:
+            self._zone_morning_state[zone_id] = MORNING_STATE_PENDING
 
     @callback
     def _async_rain_cancel_listener(self, event) -> None:
@@ -198,7 +265,8 @@ class GardenIrrigationCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         """Cancel background tasks and listeners on unload."""
         if self._leak_task and not self._leak_task.done():
             self._leak_task.cancel()
-        for unsub in ("_unsub_evening", "_unsub_morning", "_unsub_rain_cancel"):
+        for unsub in ("_unsub_evening", "_unsub_morning", "_unsub_rain_cancel",
+                      "_unsub_notification_action"):
             fn = getattr(self, unsub, None)
             if fn:
                 fn()
@@ -600,19 +668,27 @@ class GardenIrrigationCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             "hot_days": self._hot_days,
         })
 
-    async def _send_notification(self, message: str, title: str = "Tuinbewatering") -> None:
+    async def _send_notification(
+        self,
+        message: str,
+        title: str = "Tuinbewatering",
+        actions: list[dict] | None = None,
+    ) -> None:
         services = self._config.get(CONF_NOTIFY_SERVICE, [])
-        # Support both old string format and new list format
         if isinstance(services, str):
             services = [services]
         for svc in services:
             parts = svc.split(".")
             service_name = parts[-1] if len(parts) > 1 else svc
+            payload: dict = {"message": message, "title": title}
+            if actions:
+                # iOS and Android companion app both support data.actions
+                payload["data"] = {"actions": actions}
             try:
                 await self.hass.services.async_call(
                     "notify",
                     service_name,
-                    {"message": message, "title": title},
+                    payload,
                     blocking=False,
                 )
             except Exception as exc:

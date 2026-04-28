@@ -1,0 +1,125 @@
+{
+  "config": {
+    "step": {
+      "main_valve": {
+        "title": "Hoofdklep",
+        "description": "Selecteer de entiteit die de hoofdwaterklep bestuurt.",
+        "data": {
+          "main_valve": "Hoofdklep entiteit"
+        }
+      },
+      "zones": {
+        "title": "Bewateringszones",
+        "description": "Hoeveel bewateringszones wil je configureren? (1–8)",
+        "data": {
+          "zone_count": "Aantal zones"
+        }
+      },
+      "zone_detail": {
+        "title": "Zone {zone_num} configuratie",
+        "data": {
+          "name": "Zonenaam",
+          "type": "Zonetype",
+          "flow_entity": "Zone klep / flow-besturingsentiteit (optioneel)",
+          "default_duration": "Standaard bewateringsduur (minuten)",
+          "enabled": "Activeer deze zone"
+        }
+      },
+      "weather": {
+        "title": "Weerdata",
+        "description": "Selecteer je weergerelateerde entiteit en stel drempelwaarden in voor regen en temperatuur.",
+        "data": {
+          "weather_entity": "Weerentiteit",
+          "precipitation_sensor": "Neerslagsensor (optionele overschrijving)",
+          "temperature_sensor": "Temperatuursensor (optionele overschrijving)",
+          "rain_threshold": "Regendrempel (mm) — bewatering overslaan boven deze waarde",
+          "temp_threshold": "Temperatuurdrempel (°C) — urgente bewatering boven deze waarde"
+        }
+      },
+      "flow_meter": {
+        "title": "Flowmeter (optioneel)",
+        "description": "Configureer een flowmeter voor verbruiksmeting en lekdetectie. Sla over als je geen flowmeter hebt.",
+        "data": {
+          "flow_sensor": "Flowsensor entiteit (optioneel)",
+          "idle_threshold": "Idle flow drempel (L/min)",
+          "leak_detection": "Lekdetectie inschakelen",
+          "leak_check_interval": "Lekcheck interval (minuten)"
+        }
+      },
+      "notifications": {
+        "title": "Meldingen & planning",
+        "data": {
+          "notify_service": "Meldingsservice",
+          "evening_advice_time": "Tijdstip avondadvies (UU:MM)",
+          "morning_start_time": "Tijdstip automatische ochtendstart (UU:MM)",
+          "auto_start": "Automatisch starten bij aanbevolen bewatering",
+          "require_confirmation": "Bevestiging vragen voor het starten"
+        }
+      }
+    },
+    "error": {
+      "invalid_entity": "Entiteit niet gevonden in Home Assistant",
+      "invalid_time_format": "Ongeldig tijdformaat, gebruik UU:MM",
+      "zone_name_empty": "Zonenaam mag niet leeg zijn",
+      "no_zones": "Er moet minimaal één zone geconfigureerd zijn",
+      "invalid_threshold": "Drempelwaarde moet een positief getal zijn"
+    },
+    "abort": {
+      "already_configured": "Tuinbewatering is al geconfigureerd"
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Tuinbewatering opties",
+        "data": {
+          "rain_threshold": "Regendrempel (mm)",
+          "temp_threshold": "Temperatuurdrempel (°C)",
+          "auto_start": "Automatisch starten",
+          "require_confirmation": "Bevestiging vragen voor het starten",
+          "leak_detection": "Lekdetectie inschakelen",
+          "leak_check_interval": "Lekcheck interval (minuten)"
+        }
+      }
+    }
+  },
+  "entity": {
+    "sensor": {
+      "advice": {
+        "name": "Bewateringsadvies {zone_name}",
+        "state": {
+          "skip": "Overslaan",
+          "optional": "Optioneel",
+          "recommended": "Aanbevolen",
+          "urgent": "Urgent"
+        }
+      },
+      "consumption_today": {"name": "Waterverbruik vandaag"},
+      "consumption_week": {"name": "Waterverbruik deze week"},
+      "last_session": {"name": "Laatste bewateringssessie"},
+      "status": {
+        "name": "Bewateringsstatus",
+        "state": {
+          "idle": "Inactief",
+          "running": "Bezig",
+          "leak_detected": "Lek gedetecteerd"
+        }
+      },
+      "dry_days": {"name": "Aaneengesloten droge dagen"},
+      "hot_days": {"name": "Aaneengesloten hete dagen"},
+      "recommended_duration": {"name": "Aanbevolen duur {zone_name}"}
+    },
+    "switch": {
+      "start_zone": {"name": "Start {zone_name}"},
+      "auto_mode": {"name": "Automodus"},
+      "leak_detection_switch": {"name": "Lekdetectie"}
+    },
+    "button": {
+      "stop_all": {"name": "Stop alle zones"}
+    },
+    "number": {
+      "duration": {"name": "Duur {zone_name}"},
+      "rain_threshold": {"name": "Regendrempel"}
+    }
+  }
+}

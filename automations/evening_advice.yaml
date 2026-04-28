@@ -1,0 +1,36 @@
+alias: "Garden Irrigation - Evening Advice"
+description: >
+  Sends a daily evening notification with tomorrow's watering advice per zone,
+  including recommended duration and the reason (dry days, temperature, rain forecast).
+trigger:
+  - platform: time
+    at: "20:00:00"
+condition: []
+action:
+  - variables:
+      advice_lines: >
+        {% set ns = namespace(lines=[]) %}
+        {% for state in states.sensor
+            | selectattr('entity_id', 'match', 'sensor.garden_irrigation_advice_.*')
+            | list %}
+          {% set zone = state.name | replace('Watering advice ', '') | replace('Bewateringsadvies ', '') %}
+          {% set level = state.state %}
+          {% set reason = state.attributes.reason | default('') %}
+          {% set duration = state.attributes.recommended_duration | default('?') %}
+          {% set split = state.attributes.split_session_suggested | default(false) %}
+          {% set icon = '🚫' if level == 'skip' else ('💧' if level == 'optional' else ('💦' if level == 'recommended' else '🚨')) %}
+          {% set line = icon ~ ' ' ~ zone ~ ': ' ~ level ~ ' (' ~ duration ~ ' min)' %}
+          {% if reason %}{% set line = line ~ ' — ' ~ reason %}{% endif %}
+          {% if split %}{% set line = line ~ ' ⚠️ gesplitste sessie aanbevolen' %}{% endif %}
+          {% set ns.lines = ns.lines + [line] %}
+        {% endfor %}
+        {{ ns.lines | join('\n') }}
+  - service: notify.notify
+    data:
+      title: "🌱 Bewateringsadvies voor morgen"
+      message: >
+        Droge dagen: {{ states('sensor.garden_irrigation_dry_days') }}
+        Hete dagen: {{ states('sensor.garden_irrigation_hot_days') }}
+
+        {{ advice_lines }}
+mode: single

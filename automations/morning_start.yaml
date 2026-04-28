@@ -1,0 +1,47 @@
+alias: "Garden Irrigation - Morning Auto Start"
+description: >
+  Automatically starts all enabled zones at the configured morning time when
+  the advice is 'recommended' or 'urgent' and auto mode is on.
+trigger:
+  - platform: time
+    at: "06:00:00"
+condition:
+  - condition: state
+    entity_id: switch.garden_irrigation_auto_mode
+    state: "on"
+  - condition: or
+    conditions:
+      - condition: state
+        entity_id: sensor.garden_irrigation_status
+        state: idle
+action:
+  - choose:
+      - conditions:
+          - condition: state
+            entity_id: switch.garden_irrigation_require_confirmation
+            state: "on"
+        sequence:
+          - service: notify.notify
+            data:
+              title: "🌱 Bewatering starten?"
+              message: >
+                Bewatering staat gepland. Tap om te starten of negeer om over te slaan.
+                Advies: {{ states('sensor.garden_irrigation_advice_zone_1') }}
+          # In a real implementation this would use the mobile_app actionable notification
+    default:
+      - repeat:
+          for_each: >
+            {{ states.sensor
+               | selectattr('entity_id', 'match', 'sensor.garden_irrigation_advice_.*')
+               | selectattr('state', 'in', ['recommended', 'urgent'])
+               | map(attribute='entity_id')
+               | map('replace', 'sensor.garden_irrigation_advice_', '')
+               | list }}
+          sequence:
+            - service: switch.turn_on
+              target:
+                entity_id: "switch.garden_irrigation_start_{{ repeat.item }}"
+            - wait_template: >
+                {{ is_state('sensor.garden_irrigation_status', 'idle') }}
+              timeout: "04:00:00"
+mode: single

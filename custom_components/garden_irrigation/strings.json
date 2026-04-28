@@ -1,0 +1,125 @@
+{
+  "config": {
+    "step": {
+      "main_valve": {
+        "title": "Main Valve",
+        "description": "Select the entity that controls the main water supply valve.",
+        "data": {
+          "main_valve": "Main valve entity"
+        }
+      },
+      "zones": {
+        "title": "Watering Zones",
+        "description": "Configure your watering zones (up to 8). You can add more zones after setup.",
+        "data": {
+          "zone_count": "Number of zones"
+        }
+      },
+      "zone_detail": {
+        "title": "Zone {zone_num} Configuration",
+        "data": {
+          "name": "Zone name",
+          "type": "Zone type",
+          "flow_entity": "Zone valve / flow control entity (optional)",
+          "default_duration": "Default watering duration (minutes)",
+          "enabled": "Enable this zone"
+        }
+      },
+      "weather": {
+        "title": "Weather Data",
+        "description": "Select your weather entity and configure thresholds.",
+        "data": {
+          "weather_entity": "Weather entity",
+          "precipitation_sensor": "Precipitation sensor (optional override)",
+          "temperature_sensor": "Temperature sensor (optional override)",
+          "rain_threshold": "Rain threshold (mm) — skip watering above this",
+          "temp_threshold": "Temperature threshold (°C) — urgent watering above this"
+        }
+      },
+      "flow_meter": {
+        "title": "Flow Meter (Optional)",
+        "description": "If you have a flow meter, configure it here for leak detection and consumption tracking.",
+        "data": {
+          "flow_sensor": "Flow sensor entity (optional)",
+          "idle_threshold": "Idle flow threshold (L/min)",
+          "leak_detection": "Enable leak detection",
+          "leak_check_interval": "Leak check interval (minutes)"
+        }
+      },
+      "notifications": {
+        "title": "Notifications & Schedule",
+        "data": {
+          "notify_service": "Notification service",
+          "evening_advice_time": "Evening advice time (HH:MM)",
+          "morning_start_time": "Morning auto-start time (HH:MM)",
+          "auto_start": "Automatically start watering",
+          "require_confirmation": "Require confirmation before starting"
+        }
+      }
+    },
+    "error": {
+      "invalid_entity": "Entity not found in Home Assistant",
+      "invalid_time_format": "Invalid time format, use HH:MM",
+      "zone_name_empty": "Zone name cannot be empty",
+      "no_zones": "At least one zone must be configured",
+      "invalid_threshold": "Threshold must be a positive number"
+    },
+    "abort": {
+      "already_configured": "Garden Irrigation is already configured"
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Garden Irrigation Options",
+        "data": {
+          "rain_threshold": "Rain threshold (mm)",
+          "temp_threshold": "Temperature threshold (°C)",
+          "auto_start": "Automatically start watering",
+          "require_confirmation": "Require confirmation before starting",
+          "leak_detection": "Enable leak detection",
+          "leak_check_interval": "Leak check interval (minutes)"
+        }
+      }
+    }
+  },
+  "entity": {
+    "sensor": {
+      "advice": {
+        "name": "Watering advice {zone_name}",
+        "state": {
+          "skip": "Skip",
+          "optional": "Optional",
+          "recommended": "Recommended",
+          "urgent": "Urgent"
+        }
+      },
+      "consumption_today": {"name": "Water consumption today"},
+      "consumption_week": {"name": "Water consumption this week"},
+      "last_session": {"name": "Last watering session"},
+      "status": {
+        "name": "Irrigation status",
+        "state": {
+          "idle": "Idle",
+          "running": "Running",
+          "leak_detected": "Leak detected"
+        }
+      },
+      "dry_days": {"name": "Consecutive dry days"},
+      "hot_days": {"name": "Consecutive hot days"},
+      "recommended_duration": {"name": "Recommended duration {zone_name}"}
+    },
+    "switch": {
+      "start_zone": {"name": "Start {zone_name}"},
+      "auto_mode": {"name": "Auto mode"},
+      "leak_detection_switch": {"name": "Leak detection"}
+    },
+    "button": {
+      "stop_all": {"name": "Stop all zones"}
+    },
+    "number": {
+      "duration": {"name": "Duration {zone_name}"},
+      "rain_threshold": {"name": "Rain threshold"}
+    }
+  }
+}

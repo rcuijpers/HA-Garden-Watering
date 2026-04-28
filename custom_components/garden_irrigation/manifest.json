@@ -1,0 +1,13 @@
+{
+  "domain": "garden_irrigation",
+  "name": "Garden Irrigation",
+  "version": "0.1.0",
+  "config_flow": true,
+  "documentation": "https://github.com/rcuijpers/ha-garden-watering",
+  "issue_tracker": "https://github.com/rcuijpers/ha-garden-watering/issues",
+  "dependencies": [],
+  "codeowners": ["@rcuijpers"],
+  "requirements": [],
+  "iot_class": "local_polling",
+  "homeassistant": "2024.1.0"
+}

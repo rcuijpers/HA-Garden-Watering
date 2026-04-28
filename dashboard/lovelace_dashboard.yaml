@@ -1,0 +1,73 @@
+title: Tuinbewatering
+views:
+  - title: Overzicht
+    path: garden-irrigation
+    icon: mdi:sprinkler-variant
+    cards:
+      # Status header
+      - type: horizontal-stack
+        cards:
+          - type: entity
+            entity: sensor.garden_irrigation_status
+            name: Status
+            icon: mdi:water-pump
+          - type: entity
+            entity: sensor.garden_irrigation_dry_days
+            name: Droge dagen
+            icon: mdi:weather-sunny-off
+          - type: entity
+            entity: sensor.garden_irrigation_hot_days
+            name: Hete dagen
+            icon: mdi:thermometer-high
+
+      # Controls
+      - type: entities
+        title: Besturing
+        entities:
+          - entity: switch.garden_irrigation_auto_mode
+            name: Automodus
+          - entity: switch.garden_irrigation_leak_detection_switch
+            name: Lekdetectie
+          - entity: number.garden_irrigation_rain_threshold
+            name: Regendrempel
+          - type: button
+            name: Stop alle zones
+            tap_action:
+              action: call-service
+              service: button.press
+              target:
+                entity_id: button.garden_irrigation_stop_all
+            icon: mdi:stop-circle-outline
+
+      # Per-zone cards — duplicate and rename for each zone
+      - type: vertical-stack
+        title: Zones
+        cards:
+          - type: entities
+            title: Zone 1
+            entities:
+              - entity: sensor.garden_irrigation_advice_zone_1
+                name: Advies
+              - entity: sensor.garden_irrigation_recommended_duration_zone_1
+                name: Aanbevolen duur
+              - entity: number.garden_irrigation_duration_zone_1
+                name: Ingestelde duur
+              - entity: switch.garden_irrigation_start_zone_1
+                name: Starten
+
+      # Consumption
+      - type: history-graph
+        title: Waterverbruik
+        entities:
+          - entity: sensor.garden_irrigation_consumption_today
+            name: Vandaag
+          - entity: sensor.garden_irrigation_consumption_week
+            name: Deze week
+        hours_to_show: 168
+
+      # Last session
+      - type: entities
+        title: Laatste sessie
+        entities:
+          - entity: sensor.garden_irrigation_last_session
+            name: Starttijd

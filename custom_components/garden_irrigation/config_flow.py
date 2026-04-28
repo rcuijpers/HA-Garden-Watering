@@ -241,6 +241,16 @@ class GardenIrrigationConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     async def async_step_notifications(self, user_input=None):
         """Step 5: Notifications and schedule."""
         errors = {}
+
+        # Discover available notify services at runtime so the user can pick their phone
+        notify_services = sorted(
+            f"notify.{svc}"
+            for svc in self.hass.services.async_services().get("notify", {}).keys()
+            if svc != "notify"  # skip the generic 'notify.notify' alias if present
+        )
+        if not notify_services:
+            notify_services = ["notify.notify"]
+
         if user_input is not None:
             for key in (CONF_EVENING_ADVICE_TIME, CONF_MORNING_START_TIME):
                 try:
@@ -258,11 +268,13 @@ class GardenIrrigationConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 })
                 return self.async_create_entry(title="Garden Irrigation", data=self._data)
 
+        default_service = notify_services[0] if notify_services else "notify.notify"
+
         return self.async_show_form(
             step_id="notifications",
             data_schema=vol.Schema({
-                vol.Required(CONF_NOTIFY_SERVICE): EntitySelector(
-                    EntitySelectorConfig(domain=["notify"])
+                vol.Required(CONF_NOTIFY_SERVICE, default=default_service): SelectSelector(
+                    SelectSelectorConfig(options=notify_services, mode=SelectSelectorMode.DROPDOWN)
                 ),
                 vol.Required(CONF_EVENING_ADVICE_TIME, default=DEFAULT_EVENING_ADVICE_TIME): TimeSelector(),
                 vol.Required(CONF_MORNING_START_TIME, default=DEFAULT_MORNING_START_TIME): TimeSelector(),

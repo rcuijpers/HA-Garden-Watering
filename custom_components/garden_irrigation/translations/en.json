@@ -49,7 +49,7 @@
       "notifications": {
         "title": "Notifications & Schedule",
         "data": {
-          "notify_service": "Notification service",
+          "notify_service": "Notification services (select one or more)",
           "evening_advice_time": "Evening advice time (HH:MM)",
           "morning_start_time": "Morning auto-start time (HH:MM)",
           "auto_start": "Automatically start watering when advised",

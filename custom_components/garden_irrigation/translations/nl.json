@@ -49,7 +49,7 @@
       "notifications": {
         "title": "Meldingen & planning",
         "data": {
-          "notify_service": "Meldingsservice",
+          "notify_service": "Meldingsservices (selecteer één of meer)",
           "evening_advice_time": "Tijdstip avondadvies (UU:MM)",
           "morning_start_time": "Tijdstip automatische ochtendstart (UU:MM)",
           "auto_start": "Automatisch starten bij aanbevolen bewatering",

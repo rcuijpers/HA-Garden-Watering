@@ -260,7 +260,7 @@ class GardenIrrigationConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
             if not errors:
                 self._data.update({
-                    CONF_NOTIFY_SERVICE: user_input[CONF_NOTIFY_SERVICE],
+                    CONF_NOTIFY_SERVICE: user_input[CONF_NOTIFY_SERVICE],  # list
                     CONF_EVENING_ADVICE_TIME: user_input[CONF_EVENING_ADVICE_TIME],
                     CONF_MORNING_START_TIME: user_input[CONF_MORNING_START_TIME],
                     CONF_AUTO_START: bool(user_input.get(CONF_AUTO_START, False)),
@@ -268,13 +268,17 @@ class GardenIrrigationConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 })
                 return self.async_create_entry(title="Garden Irrigation", data=self._data)
 
-        default_service = notify_services[0] if notify_services else "notify.notify"
+        default_services = notify_services[:1] if notify_services else ["notify.notify"]
 
         return self.async_show_form(
             step_id="notifications",
             data_schema=vol.Schema({
-                vol.Required(CONF_NOTIFY_SERVICE, default=default_service): SelectSelector(
-                    SelectSelectorConfig(options=notify_services, mode=SelectSelectorMode.DROPDOWN)
+                vol.Required(CONF_NOTIFY_SERVICE, default=default_services): SelectSelector(
+                    SelectSelectorConfig(
+                        options=notify_services,
+                        mode=SelectSelectorMode.DROPDOWN,
+                        multiple=True,
+                    )
                 ),
                 vol.Required(CONF_EVENING_ADVICE_TIME, default=DEFAULT_EVENING_ADVICE_TIME): TimeSelector(),
                 vol.Required(CONF_MORNING_START_TIME, default=DEFAULT_MORNING_START_TIME): TimeSelector(),

@@ -601,17 +601,19 @@ class GardenIrrigationCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         })
 
     async def _send_notification(self, message: str, title: str = "Tuinbewatering") -> None:
-        notify_service = self._config.get(CONF_NOTIFY_SERVICE)
-        if not notify_service:
-            return
-        parts = notify_service.split(".")
-        service_name = parts[-1] if len(parts) > 1 else notify_service
-        try:
-            await self.hass.services.async_call(
-                "notify",
-                service_name,
-                {"message": message, "title": title},
-                blocking=False,
-            )
-        except Exception as exc:
-            _LOGGER.warning("Could not send notification: %s", exc)
+        services = self._config.get(CONF_NOTIFY_SERVICE, [])
+        # Support both old string format and new list format
+        if isinstance(services, str):
+            services = [services]
+        for svc in services:
+            parts = svc.split(".")
+            service_name = parts[-1] if len(parts) > 1 else svc
+            try:
+                await self.hass.services.async_call(
+                    "notify",
+                    service_name,
+                    {"message": message, "title": title},
+                    blocking=False,
+                )
+            except Exception as exc:
+                _LOGGER.warning("Could not send notification to %s: %s", svc, exc)

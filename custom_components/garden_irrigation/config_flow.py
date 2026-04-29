@@ -1,7 +1,6 @@
 """Config flow for Garden Irrigation integration."""
 from __future__ import annotations
 
-import re
 import voluptuous as vol
 
 from homeassistant import config_entries
@@ -57,13 +56,10 @@ from .const import (
     CONF_REQUIRE_CONFIRMATION,
 )
 
-_TIME_RE = re.compile(r"^([01]\d|2[0-3]):([0-5]\d)$")
-
-
-def _validate_time(value: str) -> str:
-    if not _TIME_RE.match(value):
-        raise vol.Invalid("invalid_time_format")
-    return value
+def _normalize_time(value: str) -> str:
+    """Normalize TimeSelector output (HH:MM:SS or H:MM:SS) to HH:MM."""
+    parts = value.split(":")
+    return f"{int(parts[0]):02d}:{parts[1]}"
 
 
 def _entity_exists(hass: HomeAssistant, entity_id: str) -> bool:
@@ -252,17 +248,11 @@ class GardenIrrigationConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             notify_services = ["notify.notify"]
 
         if user_input is not None:
-            for key in (CONF_EVENING_ADVICE_TIME, CONF_MORNING_START_TIME):
-                try:
-                    _validate_time(user_input[key])
-                except vol.Invalid:
-                    errors[key] = "invalid_time_format"
-
             if not errors:
                 self._data.update({
                     CONF_NOTIFY_SERVICE: user_input[CONF_NOTIFY_SERVICE],  # list
-                    CONF_EVENING_ADVICE_TIME: user_input[CONF_EVENING_ADVICE_TIME],
-                    CONF_MORNING_START_TIME: user_input[CONF_MORNING_START_TIME],
+                    CONF_EVENING_ADVICE_TIME: _normalize_time(user_input[CONF_EVENING_ADVICE_TIME]),
+                    CONF_MORNING_START_TIME: _normalize_time(user_input[CONF_MORNING_START_TIME]),
                     CONF_AUTO_START: bool(user_input.get(CONF_AUTO_START, False)),
                     CONF_REQUIRE_CONFIRMATION: bool(user_input.get(CONF_REQUIRE_CONFIRMATION, True)),
                 })

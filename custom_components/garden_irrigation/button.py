@@ -59,4 +59,18 @@ class TestEveningNotificationButton(CoordinatorEntity[GardenIrrigationCoordinato
         }
 
     async def async_press(self) -> None:
-        await self.coordinator._send_evening_advice()
+        await self.coordinator._send_notification(
+            message="Dit is een testmelding van Garden Irrigation.\nLong press om de actieknoppen te zien.",
+            title="🌱 Test avondmelding",
+            actions=[
+                {
+                    "action": "IRRIGATE_CONFIRM_test",
+                    "title": "✓ In orde gemaakt",
+                },
+                {
+                    "action": "IRRIGATE_SKIP_test",
+                    "title": "Overslaan",
+                    "destructive": True,
+                },
+            ],
+        )

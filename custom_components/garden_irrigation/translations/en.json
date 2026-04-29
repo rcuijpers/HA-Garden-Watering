@@ -115,7 +115,8 @@
       "leak_detection_switch": {"name": "Leak detection"}
     },
     "button": {
-      "stop_all": {"name": "Stop all zones"}
+      "stop_all": {"name": "Stop all zones"},
+      "test_evening_notification": {"name": "Test evening notification"}
     },
     "number": {
       "duration": {"name": "Duration {zone_name}"},
